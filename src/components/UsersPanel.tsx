@@ -22,7 +22,7 @@ import { useAuth } from './AuthWrapper';
 import { useToast } from '@/hooks/use-toast';
 
 export const UsersPanel: React.FC = () => {
-  const { user, users, addSubUser, getMasterUsers } = useAuth();
+  const { user, userStats, users, addSubUser, userManagementLoading } = useAuth();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState({
@@ -44,8 +44,6 @@ export const UsersPanel: React.FC = () => {
     );
   }
 
-  const masterUsers = getMasterUsers();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -63,16 +61,6 @@ export const UsersPanel: React.FC = () => {
     if (success) {
       setNewUser({ name: '', email: '', password: '' });
       setIsDialogOpen(false);
-      toast({
-        title: "Usuário criado!",
-        description: "O novo usuário foi adicionado com sucesso",
-      });
-    } else {
-      toast({
-        title: "Erro",
-        description: "Email já está sendo usado ou ocorreu um erro",
-        variant: "destructive",
-      });
     }
   };
 
@@ -164,7 +152,7 @@ export const UsersPanel: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total de Usuários</p>
-                <p className="text-2xl font-bold text-primary">{masterUsers.length + 1}</p>
+                <p className="text-2xl font-bold text-primary">{userStats.totalUsers}</p>
               </div>
             </div>
           </CardContent>
@@ -178,7 +166,7 @@ export const UsersPanel: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Usuários Ativos</p>
-                <p className="text-2xl font-bold text-success">{masterUsers.length + 1}</p>
+                <p className="text-2xl font-bold text-success">{userStats.activeUsers}</p>
               </div>
             </div>
           </CardContent>
@@ -192,7 +180,7 @@ export const UsersPanel: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Administradores</p>
-                <p className="text-2xl font-bold text-warning">1</p>
+                <p className="text-2xl font-bold text-warning">{userStats.administrators}</p>
               </div>
             </div>
           </CardContent>
@@ -247,7 +235,14 @@ export const UsersPanel: React.FC = () => {
         </Card>
 
         {/* Sub Users */}
-        {masterUsers.length === 0 ? (
+        {userManagementLoading ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Carregando usuários...</p>
+            </CardContent>
+          </Card>
+        ) : users.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
               <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -258,7 +253,7 @@ export const UsersPanel: React.FC = () => {
             </CardContent>
           </Card>
         ) : (
-          masterUsers.map((subUser) => (
+          users.map((subUser) => (
             <Card key={subUser.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">

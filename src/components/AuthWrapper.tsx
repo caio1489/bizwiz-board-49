@@ -3,23 +3,9 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { LoginForm } from './LoginForm';
 import { useToast } from '@/hooks/use-toast';
-
-interface Profile {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string;
-  role: 'master' | 'user';
-  master_account_id?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface AuthUser extends Profile {
-  // Compatibility with existing interface
-  masterAccountId?: string;
-  createdAt: string;
-}
+import { UserService } from '@/services/userService';
+import { AuthUser, CreateUserData } from '@/types/auth';
+import { useUserManagement } from '@/hooks/useUserManagement';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -28,9 +14,12 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   users: AuthUser[];
+  allAssignableUsers: AuthUser[];
+  userStats: { totalUsers: number; activeUsers: number; administrators: number };
   addSubUser: (name: string, email: string, password: string) => Promise<boolean>;
   getMasterUsers: () => AuthUser[];
   loading: boolean;
+  userManagementLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,81 +35,35 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [users, setUsers] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const transformProfile = (profile: Profile): AuthUser => ({
+  // Hook de gerenciamento de usuários
+  const userManagement = useUserManagement(user);
+
+  const transformProfile = (profile: any): AuthUser => ({
     ...profile,
     id: profile.user_id,
     masterAccountId: profile.master_account_id,
     createdAt: profile.created_at,
   });
 
-  const fetchUserProfile = async (userId: string): Promise<Profile | null> => {
+  const fetchUserProfile = async (userId: string): Promise<any | null> => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      let profile = await UserService.getUserProfile(userId);
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return null;
-      }
-
-      // If no profile exists, create one
-      if (!data) {
+      // Se não encontrou o profile, cria um novo (caso seja primeiro login)
+      if (!profile) {
         const { data: authUser } = await supabase.auth.getUser();
         if (authUser.user) {
-          const newProfile = {
-            user_id: authUser.user.id,
-            name: authUser.user.user_metadata?.name || authUser.user.email?.split('@')[0] || 'Usuário',
-            email: authUser.user.email || '',
-            role: 'master' as const,
-          };
-
-          const { data: createdProfile, error: createError } = await supabase
-            .from('profiles')
-            .insert(newProfile)
-            .select()
-            .single();
-
-          if (createError) {
-            console.error('Error creating profile:', createError);
-            return null;
-          }
-
-          return createdProfile;
+          profile = await UserService.createMasterProfile(authUser.user);
         }
-        return null;
       }
 
-      return data;
+      return profile;
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('Erro ao buscar profile:', error);
       return null;
-    }
-  };
-
-  const fetchAllUsers = async () => {
-    if (!user || user.role !== 'master') return;
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(`user_id.eq.${user.user_id},master_account_id.eq.${user.id}`);
-
-      if (error) {
-        console.error('Error fetching users:', error);
-        return;
-      }
-
-      setUsers(data ? data.map(transformProfile) : []);
-    } catch (error) {
-      console.error('Error fetching users:', error);
     }
   };
 
@@ -137,17 +80,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (profile) {
               const authUser = transformProfile(profile);
               setUser(authUser);
-              // Fetch team users if master
-              setTimeout(() => {
-                if (authUser.role === 'master') {
-                  fetchAllUsers();
-                }
-              }, 0);
             }
           }, 0);
         } else {
           setUser(null);
-          setUsers([]);
         }
         
         setLoading(false);
@@ -164,11 +100,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (profile) {
             const authUser = transformProfile(profile);
             setUser(authUser);
-            setTimeout(() => {
-              if (authUser.role === 'master') {
-                fetchAllUsers();
-              }
-            }, 0);
           }
         }, 0);
       } else {
@@ -179,12 +110,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  // Re-fetch users when user changes
+  // Fetch team users when user changes
   useEffect(() => {
     if (user && user.role === 'master') {
-      fetchAllUsers();
+      userManagement.fetchTeamUsers();
     }
-  }, [user?.id]);
+  }, [user?.id, userManagement.fetchTeamUsers]);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -228,110 +159,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const addSubUser = async (name: string, email: string, password: string): Promise<boolean> => {
-    if (!user || user.role !== 'master') return false;
-
-    try {
-      // 1) Verifica se já existe um perfil com este email
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (existingProfile) {
-        toast({
-          title: "Erro",
-          description: "Email já cadastrado no sistema",
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      // 2) Cria o usuário no Auth usando o método normal
-      const redirectUrl = `${window.location.origin}/`;
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            name,
-            is_subuser: true,
-            master_account_id: user.user_id,
-          },
-        },
-      });
-
-      if (authError || !authData?.user) {
-        console.error('Auth error:', authError);
-        toast({
-          title: "Erro",
-          description: authError?.message || "Erro ao criar usuário",
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      // 3) Aguarda o trigger criar o profile (com timeout)
-      const newUserId = authData.user.id;
-      const started = Date.now();
-      let profileCreated = false;
-      
-      while (Date.now() - started < 10000 && !profileCreated) { // até 10s
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', newUserId)
-          .maybeSingle();
-        
-        if (profile) {
-          profileCreated = true;
-          break;
-        }
-        await new Promise(r => setTimeout(r, 500));
-      }
-
-      if (!profileCreated) {
-        console.error('Profile não foi criado automaticamente');
-        toast({
-          title: "Erro",
-          description: "Erro interno na criação do perfil",
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      // 4) Atualiza lista local
-      await fetchAllUsers();
-
-      toast({
-        title: "Sucesso!",
-        description: "Usuário criado com sucesso. Ele deve verificar o email para ativar a conta.",
-      });
-      return true;
-    } catch (error: any) {
-      console.error('Unexpected error:', error);
-      toast({ title: "Erro", description: error.message || 'Erro inesperado', variant: "destructive" });
-      return false;
-    }
-  };
-
-  const getMasterUsers = (): AuthUser[] => {
-    if (!user || user.role !== 'master') return [];
-    // Retorna apenas membros da equipe (exclui o próprio administrador)
-    return users.filter(u => u.master_account_id === user.id);
-  };
-
   const logout = async (): Promise<void> => {
     try {
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
-      setUsers([]);
     } catch (error) {
       console.error('Error signing out:', error);
     }
+  };
+
+  // Função legada de compatibilidade
+  const getMasterUsers = (): AuthUser[] => {
+    return userManagement.users;
+  };
+
+  // Wrapper para manter compatibilidade
+  const addSubUser = async (name: string, email: string, password: string): Promise<boolean> => {
+    return await userManagement.addSubUser({ name, email, password });
   };
 
   if (loading) {
@@ -357,10 +202,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
-        users,
+        users: userManagement.users,
+        allAssignableUsers: userManagement.allAssignableUsers,
+        userStats: userManagement.userStats,
         addSubUser,
         getMasterUsers,
         loading,
+        userManagementLoading: userManagement.loading,
       }}
     >
       {children}

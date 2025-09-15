@@ -24,7 +24,7 @@ interface NewLeadModalProps {
 }
 
 export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange, onLeadCreated }) => {
-  const { user, users, getMasterUsers } = useAuth();
+  const { user, allAssignableUsers } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -148,7 +148,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange, 
   };
 
   // Usuários que podem ser responsáveis por leads: admin atual + membros da equipe
-  const assignableUsers = user ? [user, ...getMasterUsers()] : getMasterUsers();
+  const assignableUsers = allAssignableUsers;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

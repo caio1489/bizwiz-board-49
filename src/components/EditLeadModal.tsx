@@ -25,7 +25,7 @@ export const EditLeadModal: React.FC<EditLeadModalProps> = ({
   onOpenChange, 
   onLeadUpdated 
 }) => {
-  const { user, getMasterUsers } = useAuth();
+  const { user, allAssignableUsers } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -155,7 +155,7 @@ export const EditLeadModal: React.FC<EditLeadModalProps> = ({
   };
 
   // Usuários que podem ser responsáveis por leads: admin atual + membros da equipe
-  const assignableUsers = user ? [user, ...getMasterUsers()] : getMasterUsers();
+  const assignableUsers = allAssignableUsers;
 
   if (!lead) return null;
 

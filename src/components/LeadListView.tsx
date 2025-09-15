@@ -119,7 +119,7 @@ export const LeadListView: React.FC<LeadListViewProps> = ({
 
   const getMasterUsers = () => {
     if (user?.role !== 'master') return [user!];
-    return users.filter(u => u.masterAccountId === user.id || u.id === user.id);
+    return [user, ...users]; // Inclui o admin atual + membros da equipe
   };
 
   // Filter leads based on user permissions
