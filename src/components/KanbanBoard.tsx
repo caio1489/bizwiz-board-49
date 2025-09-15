@@ -68,6 +68,20 @@ export const KanbanBoard: React.FC = () => {
     fetchLeads();
   }, [user]);
 
+  // Realtime updates for leads
+  useEffect(() => {
+    const channel = supabase
+      .channel('leads-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, () => {
+        fetchLeads();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, () => {
+        fetchLeads();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   const fetchLeads = async () => {
     if (!user) return;
 

@@ -24,7 +24,7 @@ interface NewLeadModalProps {
 }
 
 export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange, onLeadCreated }) => {
-  const { user, users } = useAuth();
+  const { user, users, getMasterUsers } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -147,10 +147,8 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange, 
     }));
   };
 
-  const getMasterUsers = () => {
-    if (user?.role !== 'master') return [user!];
-    return users.filter(u => u.masterAccountId === user.id || u.id === user.id);
-  };
+  // Usuários que podem ser responsáveis por leads: admin atual + membros da equipe
+  const assignableUsers = user ? [user, ...getMasterUsers()] : getMasterUsers();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -243,7 +241,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange, 
                 <SelectValue placeholder="Selecionar responsável" />
               </SelectTrigger>
               <SelectContent>
-                {getMasterUsers().map((u) => (
+                {assignableUsers.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
                     {u.name} {u.role === 'master' && '(Admin)'}
                   </SelectItem>

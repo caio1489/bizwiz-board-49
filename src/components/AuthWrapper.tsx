@@ -232,7 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user || user.role !== 'master') return false;
 
     try {
-      // Check if user already exists
+      // 1) Verifica se já existe perfil com este email
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('email')
@@ -248,93 +248,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      // Use service role key for admin operations
+      // 2) Cria o usuário no Auth marcando como subusuário
       const redirectUrl = `${window.location.origin}/`;
-      
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: redirectUrl,
           data: {
-            name: name,
+            name,
+            is_subuser: true,
+            master_account_id: user.user_id,
           },
         },
       });
 
       if (authError) {
         console.error('Auth error:', authError);
-        
-        // Handle specific email validation error
-        if (authError.message.includes('invalid')) {
+        if (authError.message?.toLowerCase().includes('invalid')) {
           toast({
             title: "Erro",
             description: "Email inválido. Use um email válido (ex: usuario@gmail.com)",
             variant: "destructive",
           });
         } else {
-          toast({
-            title: "Erro", 
-            description: authError.message,
-            variant: "destructive",
-          });
+          toast({ title: "Erro", description: authError.message, variant: "destructive" });
         }
         return false;
       }
 
-      if (!authData.user) {
-        toast({
-          title: "Erro",
-          description: "Usuário não foi criado",
-          variant: "destructive",
-        });
+      if (!authData?.user) {
+        toast({ title: "Erro", description: "Usuário não foi criado", variant: "destructive" });
         return false;
       }
 
-      // Create profile as team member
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          user_id: authData.user.id,
-          name,
-          email,
-          role: 'user',
-          master_account_id: user.user_id,
-        });
-
-      if (profileError) {
-        console.error('Profile error:', profileError);
-        toast({
-          title: "Erro",
-          description: profileError.message,
-          variant: "destructive",
-        });
-        return false;
+      // 3) Aguardamos o trigger criar o profile corretamente
+      const newUserId = authData.user.id;
+      const started = Date.now();
+      let created = null as any;
+      while (Date.now() - started < 8000) { // até 8s
+        const { data: createdProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', newUserId)
+          .maybeSingle();
+        if (createdProfile) { created = createdProfile; break; }
+        await new Promise(r => setTimeout(r, 400));
       }
 
-      // Refresh users list
+      // 4) Atualiza lista local
       await fetchAllUsers();
-      
+
       toast({
         title: "Sucesso!",
         description: "Usuário criado com sucesso. Ele deve verificar o email para ativar a conta.",
       });
-      
       return true;
     } catch (error: any) {
       console.error('Unexpected error:', error);
-      toast({
-        title: "Erro",
-        description: error.message || 'Erro inesperado',
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: error.message || 'Erro inesperado', variant: "destructive" });
       return false;
     }
   };
 
   const getMasterUsers = (): AuthUser[] => {
     if (!user || user.role !== 'master') return [];
-    return users.filter(u => u.master_account_id === user.id || u.id === user.id);
+    // Retorna apenas membros da equipe (exclui o próprio administrador)
+    return users.filter(u => u.master_account_id === user.id);
   };
 
   const logout = async (): Promise<void> => {
