@@ -232,7 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user || user.role !== 'master') return false;
 
     try {
-      // 1) Verifica se já existe perfil com este email
+      // 1) Verifica se já existe um perfil com este email
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('email')
@@ -248,7 +248,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      // 2) Cria o usuário no Auth marcando como subusuário
+      // 2) Cria o usuário no Auth usando o método normal
       const redirectUrl = `${window.location.origin}/`;
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -263,37 +263,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
 
-      if (authError) {
+      if (authError || !authData?.user) {
         console.error('Auth error:', authError);
-        if (authError.message?.toLowerCase().includes('invalid')) {
-          toast({
-            title: "Erro",
-            description: "Email inválido. Use um email válido (ex: usuario@gmail.com)",
-            variant: "destructive",
-          });
-        } else {
-          toast({ title: "Erro", description: authError.message, variant: "destructive" });
-        }
+        toast({
+          title: "Erro",
+          description: authError?.message || "Erro ao criar usuário",
+          variant: "destructive",
+        });
         return false;
       }
 
-      if (!authData?.user) {
-        toast({ title: "Erro", description: "Usuário não foi criado", variant: "destructive" });
-        return false;
-      }
-
-      // 3) Aguardamos o trigger criar o profile corretamente
+      // 3) Aguarda o trigger criar o profile (com timeout)
       const newUserId = authData.user.id;
       const started = Date.now();
-      let created = null as any;
-      while (Date.now() - started < 8000) { // até 8s
-        const { data: createdProfile } = await supabase
+      let profileCreated = false;
+      
+      while (Date.now() - started < 10000 && !profileCreated) { // até 10s
+        const { data: profile } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id')
           .eq('user_id', newUserId)
           .maybeSingle();
-        if (createdProfile) { created = createdProfile; break; }
-        await new Promise(r => setTimeout(r, 400));
+        
+        if (profile) {
+          profileCreated = true;
+          break;
+        }
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      if (!profileCreated) {
+        console.error('Profile não foi criado automaticamente');
+        toast({
+          title: "Erro",
+          description: "Erro interno na criação do perfil",
+          variant: "destructive",
+        });
+        return false;
       }
 
       // 4) Atualiza lista local

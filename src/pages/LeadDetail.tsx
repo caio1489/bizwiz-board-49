@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import { EditLeadModal } from '@/components/EditLeadModal';
 import { 
   ArrowLeft, 
   Mail, 
@@ -17,7 +18,8 @@ import {
   MessageSquare,
   Send,
   Clock,
-  User
+  User,
+  Edit
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/components/AuthWrapper';
@@ -80,6 +82,7 @@ export const LeadDetail: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   useEffect(() => {
     if (!leadId || !user) return;
@@ -246,9 +249,19 @@ export const LeadDetail: React.FC = () => {
               <p className="text-slate-600">Detalhes do Lead</p>
             </div>
           </div>
-          <Badge className={`${statusColors[lead.status]} px-4 py-2 text-sm font-semibold`}>
-            {statusNames[lead.status]}
-          </Badge>
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setEditModalOpen(true)}
+              className="flex items-center space-x-2"
+            >
+              <Edit className="w-4 h-4" />
+              <span>Editar</span>
+            </Button>
+            <Badge className={`${statusColors[lead.status]} px-4 py-2 text-sm font-semibold`}>
+              {statusNames[lead.status]}
+            </Badge>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -441,6 +454,14 @@ export const LeadDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit Lead Modal */}
+      <EditLeadModal
+        lead={lead}
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        onLeadUpdated={fetchLead}
+      />
     </div>
   );
 };
