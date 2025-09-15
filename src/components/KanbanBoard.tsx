@@ -413,7 +413,8 @@ export const KanbanBoard: React.FC = () => {
       {/* New Lead Modal */}
       <NewLeadModal 
         open={newLeadModalOpen} 
-        onOpenChange={setNewLeadModalOpen} 
+        onOpenChange={setNewLeadModalOpen}
+        onLeadCreated={fetchLeads}
       />
 
       {/* Lead Detail Modal */}

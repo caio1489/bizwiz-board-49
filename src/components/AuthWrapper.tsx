@@ -264,11 +264,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (authError) {
         console.error('Auth error:', authError);
-        toast({
-          title: "Erro",
-          description: "Não é possível criar usuários via client. Use o painel do Supabase.",
-          variant: "destructive",
-        });
+        
+        // Handle specific email validation error
+        if (authError.message.includes('invalid')) {
+          toast({
+            title: "Erro",
+            description: "Email inválido. Use um email válido (ex: usuario@gmail.com)",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Erro", 
+            description: authError.message,
+            variant: "destructive",
+          });
+        }
         return false;
       }
 

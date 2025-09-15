@@ -9,18 +9,24 @@ import { Badge } from '@/components/ui/badge';
 import { X, Plus } from 'lucide-react';
 import { Lead } from '@/types/crm';
 import { useAuth } from './AuthWrapper';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface NewLeadModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange }) => {
+interface NewLeadModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onLeadCreated?: () => void;
+}
+
+export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange, onLeadCreated }) => {
   const { user, users } = useAuth();
   const { toast } = useToast();
-  const [leads, setLeads] = useLocalStorage<Lead[]>(`leads-${user?.id}`, []);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -35,7 +41,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange }
   });
   const [tagInput, setTagInput] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name || !formData.email) {
@@ -47,44 +53,81 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange }
       return;
     }
 
-    const newLead: Lead = {
-      id: Date.now().toString(),
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      company: formData.company,
-      value: formData.value ? parseFloat(formData.value) : 0,
-      status: 'new',
-      assigned_to: formData.assignedTo,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      notes: formData.notes,
-      tags: formData.tags,
-      source: formData.source || 'Manual',
-      user_id: user?.user_id || '',
-    };
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setLeads([...leads, newLead]);
-    
-    toast({
-      title: "Sucesso!",
-      description: "Lead criado com sucesso",
-    });
+    setIsSubmitting(true);
 
-    // Reset form
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      company: '',
-      value: '',
-      assignedTo: user?.user_id || '',
-      notes: '',
-      tags: [],
-      source: '',
-    });
-    setTagInput('');
-    onOpenChange(false);
+    try {
+      const newLead = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        company: formData.company || null,
+        value: formData.value ? parseFloat(formData.value) : 0,
+        status: 'new',
+        assigned_to: formData.assignedTo,
+        notes: formData.notes || '',
+        tags: formData.tags,
+        source: formData.source || 'Manual',
+        user_id: user.user_id,
+      };
+
+      const { error } = await supabase
+        .from('leads')
+        .insert([newLead]);
+
+      if (error) {
+        console.error('Error creating lead:', error);
+        toast({
+          title: "Erro",
+          description: "Erro ao criar lead: " + error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      toast({
+        title: "Sucesso!",
+        description: "Lead criado com sucesso",
+      });
+
+      // Reset form
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        company: '',
+        value: '',
+        assignedTo: user?.user_id || '',
+        notes: '',
+        tags: [],
+        source: '',
+      });
+      setTagInput('');
+      
+      // Call refresh callback
+      if (onLeadCreated) {
+        onLeadCreated();
+      }
+      
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Unexpected error:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao criar lead",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const addTag = () => {
@@ -256,11 +299,11 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ open, onOpenChange }
           </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-border">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancelar
             </Button>
-            <Button type="submit" className="bg-gradient-to-r from-primary to-primary-dark text-primary-foreground">
-              Criar Lead
+            <Button type="submit" className="bg-gradient-to-r from-primary to-primary-dark text-primary-foreground" disabled={isSubmitting}>
+              {isSubmitting ? "Criando..." : "Criar Lead"}
             </Button>
           </div>
         </form>
