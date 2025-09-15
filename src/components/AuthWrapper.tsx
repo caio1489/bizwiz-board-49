@@ -125,6 +125,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
+        if (error.message.includes('Email not confirmed')) {
+          return { success: false, error: 'Confirme seu email antes de fazer login. Verifique sua caixa de entrada.' };
+        }
+        if (error.message.includes('Invalid login credentials')) {
+          return { success: false, error: 'Email ou senha incorretos.' };
+        }
         return { success: false, error: error.message };
       }
 
@@ -150,10 +156,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
+        if (error.message.includes('User already registered')) {
+          return { success: false, error: 'Este email já está cadastrado. Tente fazer login.' };
+        }
         return { success: false, error: error.message };
       }
 
-      return { success: true };
+      return { 
+        success: true, 
+        error: 'Conta criada! Verifique seu email para confirmar a conta antes de fazer login.' 
+      };
     } catch (error: any) {
       return { success: false, error: error.message || 'Erro inesperado' };
     }

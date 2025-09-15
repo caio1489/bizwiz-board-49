@@ -52,7 +52,7 @@ const getColumnIcon = (columnId: string) => {
 
 export const KanbanBoard: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, allAssignableUsers } = useAuth();
   const { toast } = useToast();
   const [columns, setColumns] = useState<KanbanColumn[]>(defaultColumns);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -375,19 +375,30 @@ export const KanbanBoard: React.FC = () => {
                                            </div>
                                          )}
 
-                                        {/* Bottom info */}
-                                        <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-slate-600 font-medium">
-                                              {formatDate(lead.created_at)}
-                                            </span>
-                                          </div>
-                                          <Avatar className="w-6 h-6 border-2 border-white shadow-sm">
-                                            <AvatarFallback className="text-xs bg-gradient-to-br from-primary to-primary-dark text-white font-bold">
-                                              {lead.assigned_to === user?.user_id ? 'EU' : 'US'}
-                                            </AvatarFallback>
-                                          </Avatar>
-                                        </div>
+                                         {/* Bottom info */}
+                                         <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                                           <div className="flex items-center space-x-2">
+                                             <span className="text-xs text-slate-600 font-medium">
+                                               {formatDate(lead.created_at)}
+                                             </span>
+                                           </div>
+                                           <div className="flex items-center space-x-2">
+                                             <span className="text-xs text-slate-500 font-medium">
+                                               {(() => {
+                                                 const assignedUser = allAssignableUsers.find(u => u.user_id === lead.assigned_to);
+                                                 return assignedUser ? assignedUser.name : 'Não atribuído';
+                                               })()}
+                                             </span>
+                                             <Avatar className="w-6 h-6 border-2 border-white shadow-sm">
+                                               <AvatarFallback className="text-xs bg-gradient-to-br from-primary to-primary-dark text-white font-bold">
+                                                 {(() => {
+                                                   const assignedUser = allAssignableUsers.find(u => u.user_id === lead.assigned_to);
+                                                   return assignedUser ? assignedUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?';
+                                                 })()}
+                                               </AvatarFallback>
+                                             </Avatar>
+                                           </div>
+                                         </div>
                                       </div>
                                     </CardContent>
                                   </Card>

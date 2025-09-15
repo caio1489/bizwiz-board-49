@@ -16,6 +16,7 @@ import {
   Edit
 } from 'lucide-react';
 import { Lead } from '@/types/crm';
+import { useAuth } from './AuthWrapper';
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -30,6 +31,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   onOpenChange, 
   onEdit 
 }) => {
+  const { allAssignableUsers } = useAuth();
+  
   if (!lead) return null;
 
   const formatCurrency = (value: number) => {
@@ -105,7 +108,10 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
               <User className="w-4 h-4 text-muted-foreground" />
               <Avatar className="w-8 h-8 border-2 border-white shadow-sm">
                 <AvatarFallback className="text-xs bg-gradient-to-br from-primary to-primary-dark text-white font-bold">
-                  {lead.assigned_to.slice(0, 2).toUpperCase()}
+                  {(() => {
+                    const assignedUser = allAssignableUsers.find(u => u.user_id === lead.assigned_to);
+                    return assignedUser ? assignedUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?';
+                  })()}
                 </AvatarFallback>
               </Avatar>
             </div>
@@ -132,6 +138,22 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                   <span className="font-medium">{lead.company}</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Assigned User */}
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <div className="flex items-center text-purple-700">
+              <User className="w-5 h-5 mr-2" />
+              <div>
+                <p className="text-sm font-medium">Usuário Responsável</p>
+                <p className="font-semibold">
+                  {(() => {
+                    const assignedUser = allAssignableUsers.find(u => u.user_id === lead.assigned_to);
+                    return assignedUser ? assignedUser.name : 'Não atribuído';
+                  })()}
+                </p>
+              </div>
             </div>
           </div>
 
