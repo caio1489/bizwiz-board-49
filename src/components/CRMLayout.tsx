@@ -12,7 +12,7 @@ import {
   Plus,
   Crown
 } from 'lucide-react';
-import { useAuth } from './AuthWrapper';
+import { useAuth } from '@/components/AuthWrapper';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
