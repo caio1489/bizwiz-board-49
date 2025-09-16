@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { 
   Plus, 
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from './AuthWrapper';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export const UsersPanel: React.FC = () => {
   const { user, userStats, users, addSubUser, userManagementLoading } = useAuth();
@@ -30,6 +32,8 @@ export const UsersPanel: React.FC = () => {
     email: '',
     password: '',
   });
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Only master users can access this panel
   if (user?.role !== 'master') {
@@ -61,6 +65,54 @@ export const UsersPanel: React.FC = () => {
     if (success) {
       setNewUser({ name: '', email: '', password: '' });
       setIsDialogOpen(false);
+    }
+  };
+
+  const handleDeleteUser = (userId: string, userName: string) => {
+    setUserToDelete({ id: userId, name: userName });
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete || !user) return;
+
+    try {
+      // First, delete the user's profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', userToDelete.id);
+
+      if (profileError) {
+        console.error('Error deleting profile:', profileError);
+        toast({
+          title: "Erro",
+          description: "Erro ao excluir perfil do usuário",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Note: We can't delete from auth.users directly due to RLS
+      // The user account will remain but without profile access
+      
+      toast({
+        title: "Usuário removido",
+        description: `${userToDelete.name} foi removido da equipe`,
+      });
+
+      // Refresh team users list
+      window.location.reload();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao remover usuário",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteConfirmOpen(false);
+      setUserToDelete(null);
     }
   };
 
@@ -290,10 +342,12 @@ export const UsersPanel: React.FC = () => {
                       <Activity className="w-3 h-3 mr-1" />
                       Offline
                     </Badge>
-                    <Button variant="outline" size="sm">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive-light">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleDeleteUser(subUser.id, subUser.name)}
+                      className="text-destructive hover:bg-destructive-light"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -335,6 +389,28 @@ export const UsersPanel: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover Usuário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover <strong>{userToDelete?.name}</strong> da equipe? 
+              Esta ação não pode ser desfeita e o usuário perderá acesso ao sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remover Usuário
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

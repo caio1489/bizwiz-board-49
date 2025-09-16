@@ -113,13 +113,12 @@ export const KanbanBoard: React.FC = () => {
   useEffect(() => {
     const updatedColumns = defaultColumns.map(column => ({
       ...column,
-      leads: leads.filter(lead => lead.status === column.id && 
-        (user?.role === 'master' || lead.assigned_to === user?.user_id))
+      leads: leads.filter(lead => lead.status === column.id)
     }));
     setColumns(updatedColumns);
   }, [leads, user]);
 
-  const onDragEnd = (result: any) => {
+  const onDragEnd = async (result: any) => {
     if (!result.destination) return;
 
     // Only allow master users to move leads between columns
@@ -141,7 +140,7 @@ export const KanbanBoard: React.FC = () => {
     const leadId = result.draggableId;
     const newStatus = destination.droppableId as Lead['status'];
 
-    // Update lead status
+    // Optimistically update UI
     const updatedLeads = leads.map(lead => 
       lead.id === leadId 
         ? { ...lead, status: newStatus, updated_at: new Date().toISOString() }
@@ -149,11 +148,42 @@ export const KanbanBoard: React.FC = () => {
     );
     
     setLeads(updatedLeads);
-    
-    toast({
-      title: "Lead atualizado",
-      description: `Lead movido para ${columns.find(c => c.id === newStatus)?.title}`,
-    });
+
+    try {
+      // Update in database
+      const { error } = await supabase
+        .from('leads')
+        .update({ 
+          status: newStatus, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', leadId);
+
+      if (error) {
+        console.error('Error updating lead status:', error);
+        // Revert optimistic update on error
+        fetchLeads();
+        toast({
+          title: "Erro",
+          description: "Erro ao atualizar status do lead",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Lead atualizado",
+        description: `Lead movido para ${columns.find(c => c.id === newStatus)?.title}`,
+      });
+    } catch (error) {
+      console.error('Error updating lead:', error);
+      fetchLeads();
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao atualizar lead",
+        variant: "destructive",
+      });
+    }
   };
 
   const getColumnColor = (columnId: string) => {
@@ -203,9 +233,7 @@ export const KanbanBoard: React.FC = () => {
     setLeads(updatedLeads);
   };
 
-  const allLeads = leads.filter(lead => 
-    user?.role === 'master' || lead.assigned_to === user?.user_id
-  );
+  const allLeads = leads;
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 via-white to-blue-50/30 min-h-screen">
@@ -305,15 +333,15 @@ export const KanbanBoard: React.FC = () => {
 
                       <Droppable droppableId={column.id}>
                         {(provided, snapshot) => (
-                          <div
-                            {...provided.droppableProps}
-                            ref={provided.innerRef}
-                            className={`space-y-4 min-h-[400px] transition-all duration-200 ${
-                              snapshot.isDraggingOver && user?.role === 'master' 
-                                ? 'bg-white/50 rounded-xl ring-2 ring-primary/30 shadow-inner' 
-                                : ''
-                            }`}
-                          >
+                            <div
+                              {...provided.droppableProps}
+                              ref={provided.innerRef}
+                              className={`space-y-4 min-h-[400px] transition-all duration-300 ease-in-out ${
+                                snapshot.isDraggingOver && user?.role === 'master' 
+                                  ? 'bg-white/60 rounded-xl ring-2 ring-primary/40 shadow-inner transform scale-[1.02]' 
+                                  : ''
+                              }`}
+                            >
                             {column.leads?.map((lead, index) => (
                               <Draggable 
                                 key={lead.id} 
@@ -326,13 +354,13 @@ export const KanbanBoard: React.FC = () => {
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
                                     {...provided.dragHandleProps}
-                    onClick={() => handleLeadClick(lead)}
-                    className={`${user?.role === 'master' ? 'cursor-move' : 'cursor-pointer'} 
-                      hover:shadow-xl transition-all duration-300 border-0 
-                      bg-white/90 backdrop-blur-sm shadow-md hover:shadow-2xl
-                      ${snapshot.isDragging ? 'shadow-2xl rotate-2 scale-105 ring-2 ring-primary/20' : ''} 
-                      ${user?.role !== 'master' ? 'opacity-90' : ''}
-                      rounded-xl overflow-hidden group`}
+                                    onClick={() => handleLeadClick(lead)}
+                                    className={`${user?.role === 'master' ? 'cursor-move' : 'cursor-pointer'} 
+                                      hover:shadow-xl transition-all duration-300 ease-out border-0 
+                                      bg-white/95 backdrop-blur-sm shadow-md hover:shadow-2xl
+                                      ${snapshot.isDragging ? 'shadow-2xl rotate-1 scale-105 ring-2 ring-primary/30 z-50' : 'hover:scale-[1.02]'} 
+                                      ${user?.role !== 'master' ? 'opacity-90' : ''}
+                                      rounded-xl overflow-hidden group transform-gpu`}
                                   >
                                     <CardContent className="p-4">
                                       <div className="space-y-3">

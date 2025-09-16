@@ -20,6 +20,7 @@ import {
 import { useAuth } from './AuthWrapper';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface KanbanStage {
   id: string;
@@ -62,12 +63,40 @@ export const SettingsPanel: React.FC = () => {
   const [editingStage, setEditingStage] = useState<string | null>(null);
   const [newStageName, setNewStageName] = useState('');
 
-  const handleSaveProfile = () => {
-    // In a real app, this would update the user in the backend
-    toast({
-      title: "Perfil atualizado",
-      description: "Suas informações foram salvas com sucesso",
-    });
+  const handleSaveProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          name: profileData.name,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.user_id);
+
+      if (error) {
+        console.error('Error updating profile:', error);
+        toast({
+          title: "Erro",
+          description: "Erro ao atualizar perfil: " + error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Perfil atualizado",
+        description: "Suas informações foram salvas com sucesso",
+      });
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao atualizar perfil",
+        variant: "destructive",
+      });
+    }
   };
 
   const handlePreferenceChange = (key: string, value: boolean) => {
@@ -282,14 +311,15 @@ export const SettingsPanel: React.FC = () => {
         </Card>
       </div>
 
-      {/* Kanban Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Kanban className="w-5 h-5" />
-            <span>Configuração do Kanban</span>
-          </CardTitle>
-        </CardHeader>
+      {/* Kanban Configuration - Only for master users */}
+      {user?.role === 'master' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Kanban className="w-5 h-5" />
+              <span>Configuração do Kanban</span>
+            </CardTitle>
+          </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -386,6 +416,7 @@ export const SettingsPanel: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* System Info */}
       <Card className="border-primary-muted bg-primary-muted/5">
