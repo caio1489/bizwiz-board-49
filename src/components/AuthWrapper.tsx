@@ -129,7 +129,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { success: false, error: 'Confirme seu email antes de fazer login. Verifique sua caixa de entrada.' };
         }
         if (error.message.includes('Invalid login credentials')) {
-          return { success: false, error: 'Email ou senha incorretos.' };
+          return { success: false, error: 'Email ou senha incorretos. Verifique suas credenciais.' };
+        }
+        if (error.message.includes('Email link is invalid or has expired')) {
+          return { success: false, error: 'Link de confirmação inválido ou expirado.' };
         }
         return { success: false, error: error.message };
       }

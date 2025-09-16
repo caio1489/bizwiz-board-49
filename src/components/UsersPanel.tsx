@@ -125,7 +125,7 @@ export const UsersPanel: React.FC = () => {
                   required
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  O usuário poderá alterar a senha após o primeiro login
+                  O usuário poderá fazer login imediatamente após a criação
                 </p>
               </div>
 

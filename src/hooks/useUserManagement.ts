@@ -58,7 +58,7 @@ export const useUserManagement = (currentUser: AuthUser | null) => {
         
         toast({
           title: "Sucesso!",
-          description: "Usuário criado com sucesso. Ele deve verificar o email para ativar a conta.",
+          description: "Usuário criado com sucesso. Ele já pode fazer login com as credenciais fornecidas.",
         });
         return true;
       }

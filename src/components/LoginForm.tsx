@@ -116,6 +116,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({ login, register }) => {
                 className="h-11"
               />
             </div>
+            
+            {isLogin && (
+              <div className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg">
+                <strong>Dica:</strong> Usuários da equipe podem fazer login imediatamente após serem criados pelo administrador. 
+                Contas master precisam confirmar o email primeiro.
+              </div>
+            )}
+            
             <Button
               type="submit"
               className="w-full h-11 bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary shadow-md"

@@ -4,44 +4,25 @@ import { UserProfile, CreateUserData } from '@/types/auth';
 export class UserService {
   static async createSubUser(masterUserId: string, userData: CreateUserData): Promise<UserProfile | null> {
     try {
-      // 1. Verificar se o email já existe
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('email', userData.email)
-        .maybeSingle();
-
-      if (existingProfile) {
-        throw new Error('Email já cadastrado no sistema');
-      }
-
-      // 2. Criar usuário no Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            name: userData.name,
-            is_subuser: true,
-            master_account_id: masterUserId,
-          },
+      // Usar edge function para criar subuser com confirmação automática
+      const { data, error } = await supabase.functions.invoke('create-subuser', {
+        body: {
+          name: userData.name,
+          email: userData.email,
+          password: userData.password,
+          masterUserId: masterUserId,
         },
       });
 
-      if (authError || !authData?.user) {
-        throw new Error(authError?.message || 'Erro ao criar usuário no Auth');
+      if (error) {
+        throw new Error(error.message || 'Erro ao chamar função de criação');
       }
 
-      // 3. Aguardar criação do profile via trigger
-      const newUserId = authData.user.id;
-      const profile = await this.waitForProfileCreation(newUserId, 10000);
-
-      if (!profile) {
-        throw new Error('Profile não foi criado automaticamente pelo trigger');
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro desconhecido ao criar usuário');
       }
 
-      return profile;
+      return data.profile;
     } catch (error) {
       console.error('Erro no UserService.createSubUser:', error);
       throw error;
